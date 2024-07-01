@@ -1,8 +1,12 @@
 /*
 	Based on WC Yang's QuadTree implementation
 	ref. https://yangwc.com/2020/01/10/Octree/
+	Balance method is inspired by the online course ware of "KIT Computational Geometry · Lecture Quadtrees and Meshing"
 */ 
+# pragma once
+
 #include <stack>
+#include <queue>
 #include "glm/glm.hpp" 
 
 struct TreeNode
@@ -39,6 +43,7 @@ struct TreeNode
 class QuadTree {
 public:
     // public member variables
+	// TreeNode* root
     unsigned int mMaxDepth;
 	std::stack<int> path;    
 	std::list<TreeNode*> leaves;
@@ -363,6 +368,7 @@ public:
 			node->children[1]->depth = node->depth + 1;
 			node->children[2]->depth = node->depth + 1;
 			node->children[3]->depth = node->depth + 1;
+			this->leaves.remove(node);
 			this->leaves.push_back(node->children[0]);
 			this->leaves.push_back(node->children[1]);
 			this->leaves.push_back(node->children[2]);
@@ -434,6 +440,25 @@ public:
         if (point.x > center.x && point.y > center.y) return 3;
         return -1;
     }
+
+	// get all the leaf nodes intersect with the given bounding box
+	std::list<TreeNode*> getInOnBoxNodes(TreeNode* root, glm::vec2 min, glm::vec2 max) {
+		// std::vector<TreeNode*> nodes;
+		std::queue<TreeNode *> queue;
+		queue.push(root);
+		std::list<TreeNode*> nodes = {}; 
+		getInOnBoxNodesHelper(nodes, min, max, queue);
+		return std::move(nodes);
+	}
+
+	// get all the leaf nodes intersect with a line segment
+	std::list<TreeNode*> getLineIntersectedNodes(TreeNode* root, glm::vec2 start, glm::vec2 end) {
+		std::queue<TreeNode *> queue;
+		queue.push(root);
+		std::list<TreeNode*> nodes = {};
+		getLineIntersectedNodesHelper(nodes, start, end, queue);
+		return std::move(nodes);
+	}
 
     TreeNode* findNode(TreeNode* node, glm::vec2 point) {
         if (node->isLeaf) return node;
@@ -641,6 +666,84 @@ public:
 
 		return newRoot;
 	}
+
+	// *** Public utility functions ***
+	// Helper function to check if a bounding box intersects with another bounding box
+	bool isIntersectBox(glm::vec2 min1, glm::vec2 max1, glm::vec2 min2, glm::vec2 max2) {
+		if (min1.x > max2.x || min2.x > max1.x) return false;
+		if (min1.y > max2.y || min2.y > max1.y) return false;
+		return true;
+	}
+
+	// Helper function to check if a bounding box is inside another bounding box
+	bool isInsideBox(glm::vec2 min1, glm::vec2 max1, glm::vec2 min2, glm::vec2 max2) {
+		if (min1.x >= min2.x && max1.x <= max2.x && min1.y >= min2.y && max1.y <= max2.y) return true;
+		return false;
+	}
+
+	// Helper function to check if a line segment intersects with a bounding box
+	bool isIntersectLine(glm::vec2 min, glm::vec2 max, glm::vec2 start, glm::vec2 end) {
+		// Check if the line segment is completely outside the bounding box
+		if (start.x < min.x && end.x < min.x) return false;
+		if (start.x > max.x && end.x > max.x) return false;
+		if (start.y < min.y && end.y < min.y) return false;
+		if (start.y > max.y && end.y > max.y) return false;
+
+		// Check if the line segment is completely inside the bounding box
+		if (start.x > min.x && start.x < max.x && start.y > min.y && start.y < max.y) return true;
+		if (end.x > min.x && end.x < max.x && end.y > min.y && end.y < max.y) return true;
+
+		// Check if the line segment intersects with the bounding box
+		if (isIntersect(start, end, glm::vec2(min.x, min.y), glm::vec2(max.x, min.y))) return true;
+		if (isIntersect(start, end, glm::vec2(min.x, min.y), glm::vec2(min.x, max.y))) return true;
+		if (isIntersect(start, end, glm::vec2(max.x, min.y), glm::vec2(max.x, max.y))) return true;
+		if (isIntersect(start, end, glm::vec2(min.x, max.y), glm::vec2(max.x, max.y))) return true;
+
+		return false;
+	}
+	
+	// Helper function to check if two line segments are intersected
+	bool isIntersect(glm::vec2 p1, glm::vec2 q1, glm::vec2 p2, glm::vec2 q2) {
+		// Find the 4 orientations required for the general and special cases
+		int o1 = orientation(p1, q1, p2);
+		int o2 = orientation(p1, q1, q2);
+		int o3 = orientation(p2, q2, p1);
+		int o4 = orientation(p2, q2, q1);
+
+		// General case
+		if (o1 != o2 && o3 != o4) return true;
+
+		// Special Cases
+		// p1, q1 and p2 are collinear and p2 lies on segment p1q1
+		if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+
+		// p1, q1 and q2 are collinear and q2 lies on segment p1q1
+		if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+
+		// p2, q2 and p1 are collinear and p1 lies on segment p2q2
+		if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+
+		// p2, q2 and q1 are collinear and q1 lies on segment p2q2
+		if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+
+		return false; // Doesn't fall in any of the above cases
+	}
+
+	// Helper function to calculate the orientation of three points
+	int orientation(glm::vec2 p, glm::vec2 q, glm::vec2 r) {
+		float val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+		if (val == 0) return 0; // Collinear
+		return (val > 0) ? 1 : 2; // Clockwise or Counterclockwise
+	}
+
+	// Helper function to check if a point lies on a line segment
+	bool onSegment(glm::vec2 p, glm::vec2 q, glm::vec2 r) {
+		if (q.x <= std::max(p.x, r.x) && q.x >= std::min(p.x, r.x) &&
+			q.y <= std::max(p.y, r.y) && q.y >= std::min(p.y, r.y))
+			return true;
+		return false;
+	}
+	
 private:
 	// Helper function to find the north neighbor of a given node
     TreeNode* findNorthNeighborHelper(TreeNode* node) {
@@ -833,6 +936,50 @@ private:
 
 		return nullptr;
 	}
-};
 
+	// Helper function to get all the leaf nodes intersect with a given bounding box
+	// breadth-first search method
+	void getInOnBoxNodesHelper(std::list<TreeNode*>& nodes, glm::vec2 min, glm::vec2 max, std::queue<TreeNode*>& queue) {
+		if (!queue.front()) return;
+
+		while(!queue.empty()) {
+			TreeNode* cur = queue.front();
+			queue.pop();
+			if (isIntersectBox(cur->bMin, cur->bMax, min, max) 
+				|| isInsideBox(cur->bMin, cur->bMax, min, max)) {
+				if (cur->isLeaf) {
+					nodes.push_back(cur);
+				}
+				else {
+					for (int i = 0; i < 4; ++i) {
+						queue.push(cur->children[i]);
+					}
+				}
+			}
+		}
+	}
+	// Helper function to get all the leaf nodes intersect with a given line segment
+	// breadth-first search method
+	void getLineIntersectedNodesHelper(std::list<TreeNode*>& nodes, glm::vec2 start, glm::vec2 end, std::queue<TreeNode*>& queue) {
+		if (!queue.front()) return;
+
+		while (!queue.empty()) {
+			TreeNode* cur = queue.front();
+			queue.pop();
+			if (isIntersectLine(cur->bMin, cur->bMax, start, end)) {
+				if (cur->isLeaf) {
+					nodes.push_back(cur);
+				}
+				else {
+					for (int i = 0; i < 4; ++i) {
+						queue.push(cur->children[i]);
+					}
+				}
+			}
+		}
+	}
+	
+
+};
+//! QuadTree class
 
