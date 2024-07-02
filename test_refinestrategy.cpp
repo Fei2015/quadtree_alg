@@ -203,20 +203,20 @@ int main() {
     glm::vec2 p3 = glm::vec2(1.0f, 9.0f);
     glm::vec2 p4 = glm::vec2(9.0f, 1.0f);
     // define boxes
-    glm::vec2 boxMin_1 = glm::vec2(1.0f, 1.0f);
-    glm::vec2 boxMax_1 = glm::vec2(9.0f, 3.0f);
+    glm::vec2 boxMin_1 = glm::vec2(-1.0f, -1.0f);
+    glm::vec2 boxMax_1 = glm::vec2(11.0f, 3.0f);
     glm::vec2 boxMin_2 = glm::vec2(3.0f, 2.0f);
     glm::vec2 boxMax_2 = glm::vec2(5.0f, 9.0f);
     glm::vec2 boxMin_3 = glm::vec2(0.0f, 5.0f);
     glm::vec2 boxMax_3 = glm::vec2(8.0f, 8.0f);
 
     float resolution = 0.1f;
-    test_refinementStrategy.refineAtPoint(root, point, resolution);
-    // test_refinementStrategy.refineAlongLineSegment(root, p1, p2, resolution);
-    // test_refinementStrategy.refineAlongLineSegment(root, p3, p4, 0.025);
-    test_refinementStrategy.refineInBox(root, boxMin_1, boxMax_1, 0.2);
-    test_refinementStrategy.refineInBox(root, boxMin_2, boxMax_2, 0.1);
-    // test_refinementStrategy.refineInBox(root, boxMin_3, boxMax_3, 0.1);
+    // test_refinementStrategy.refineAtPoint(root, point, resolution);
+    test_refinementStrategy.refineAlongLineSegment(root, p1, p2, resolution);
+    test_refinementStrategy.refineAlongLineSegment(root, p3, p4, 0.025);
+    test_refinementStrategy.refineInBox(root, boxMin_1, boxMax_1, 0.5);
+    test_refinementStrategy.refineInBox(root, boxMin_2, boxMax_2, 0.25);
+    test_refinementStrategy.refineInBox(root, boxMin_3, boxMax_3, 0.15);
     std::cout << "The number of leaves in the tree is: " << qt.leaves.size() << std::endl;
     qt.balanceQuadTree(root);   // rebalance the tree
     std::cout << "The number of leaves in the tree is: " << qt.leaves.size() << std::endl;

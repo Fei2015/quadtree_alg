@@ -23,6 +23,7 @@ struct TreeNode
 	std::vector<glm::vec2> objects;
 	//! is leaf node
 	bool isLeaf;
+	bool toBeRemovedFromLeaves = false;
 
 	TreeNode() :
 		isLeaf(false), bMin(glm::vec2(0.0f)), bMax(glm::vec2(0.0f)), parent(nullptr), depth(0)
@@ -368,7 +369,8 @@ public:
 			node->children[1]->depth = node->depth + 1;
 			node->children[2]->depth = node->depth + 1;
 			node->children[3]->depth = node->depth + 1;
-			this->leaves.remove(node);
+			// this->leaves.remove(node);				// !! cause severe performance issue
+			node->toBeRemovedFromLeaves = true;
 			this->leaves.push_back(node->children[0]);
 			this->leaves.push_back(node->children[1]);
 			this->leaves.push_back(node->children[2]);
@@ -585,6 +587,11 @@ public:
 		// get a copy of the leaves
 		auto tmpLeavesList = this->leaves; 
 		while (tmpLeavesList.size() > 0){
+			// pop the front element if it is to be removed
+			if (tmpLeavesList.front()->toBeRemovedFromLeaves) {
+				tmpLeavesList.pop_front();
+				continue;
+			}
 			// reset the bools to false
 			cond_N_a = false; cond_S_a = false; cond_E_a = false; cond_W_a = false;
 			cond_N_b = false; cond_S_b = false; cond_E_b = false; cond_W_b = false;
@@ -628,7 +635,7 @@ public:
 				tmpLeavesList.push_back(northNeighbor->children[2]);
 				tmpLeavesList.push_back(northNeighbor->children[3]);
 				// now erase the northNeighbor from the list
-				tmpLeavesList.remove(northNeighbor);
+				northNeighbor->toBeRemovedFromLeaves = true;	
 			}
 			if ( cond_S_b ) {
 				splitNode(southNeighbor);
@@ -638,7 +645,7 @@ public:
 				tmpLeavesList.push_back(southNeighbor->children[2]);
 				tmpLeavesList.push_back(southNeighbor->children[3]);
 				// now erase the southNeighbor from the list
-				tmpLeavesList.remove(southNeighbor);
+				southNeighbor->toBeRemovedFromLeaves = true;	
 			}
 			if ( cond_E_b ) {
 				splitNode(eastNeighbor);
@@ -648,7 +655,7 @@ public:
 				tmpLeavesList.push_back(eastNeighbor->children[2]);
 				tmpLeavesList.push_back(eastNeighbor->children[3]);
 				// now erase the eastNeighbor from the list
-				tmpLeavesList.remove(eastNeighbor);
+				eastNeighbor->toBeRemovedFromLeaves = true;
 			}
 			if ( cond_W_b ) {
 				splitNode(westNeighbor);
@@ -658,7 +665,7 @@ public:
 				tmpLeavesList.push_back(westNeighbor->children[2]);
 				tmpLeavesList.push_back(westNeighbor->children[3]);
 				// now erase the westNeighbor from the list
-				tmpLeavesList.remove(westNeighbor);
+				westNeighbor->toBeRemovedFromLeaves = true;
 			}
 			// erase the current leaf node from the list
 			tmpLeavesList.pop_front();
@@ -669,6 +676,7 @@ public:
 
 	// *** Public utility functions ***
 	// Helper function to check if a bounding box intersects with another bounding box
+	// !! Be careful this function returns true also for the case when one box is inside the other 
 	bool isIntersectBox(glm::vec2 min1, glm::vec2 max1, glm::vec2 min2, glm::vec2 max2) {
 		if (min1.x > max2.x || min2.x > max1.x) return false;
 		if (min1.y > max2.y || min2.y > max1.y) return false;
@@ -938,15 +946,29 @@ private:
 	}
 
 	// Helper function to get all the leaf nodes intersect with a given bounding box
-	// breadth-first search method
+	// depth-first search method
 	void getInOnBoxNodesHelper(std::list<TreeNode*>& nodes, glm::vec2 min, glm::vec2 max, std::queue<TreeNode*>& queue) {
 		if (!queue.front()) return;
 
 		while(!queue.empty()) {
 			TreeNode* cur = queue.front();
 			queue.pop();
-			if (isIntersectBox(cur->bMin, cur->bMax, min, max) 
-				|| isInsideBox(cur->bMin, cur->bMax, min, max)) {
+			// recursively push the children leaves into the queue if this node is inside
+			if (isInsideBox(cur->bMin, cur->bMax, min, max)){
+				std::function<void(TreeNode*)> traverse = [&](TreeNode* cur) {
+					if (cur->isLeaf) {
+						nodes.push_back(cur);
+					}
+					else {
+						for (int i = 0; i < 4; ++i) {
+							traverse(cur->children[i]);
+						}
+					}
+				};
+				traverse(cur);
+			}
+			// if the node is intersected with the box, push it into the list
+			else if (isIntersectBox(cur->bMin, cur->bMax, min, max)) {
 				if (cur->isLeaf) {
 					nodes.push_back(cur);
 				}

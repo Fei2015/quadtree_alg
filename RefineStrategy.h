@@ -83,31 +83,77 @@ private:
             std::cerr << "Invalid refinement input" << std::endl;
             return;
         }
-        std::list<TreeNode*> nodes = {};
+        // change to depth-first search method
+        std::queue <TreeNode*> q;
+        q.push(root);
         float cur_res = 0;
-        nodes = quadtree.getInOnBoxNodes(root, box_min, box_max);
-        std::queue <TreeNode*> q_inonbox;
-        for (auto node : nodes) {
-            q_inonbox.push(node);    // initialize the queue
-        }
- 
-        while (!q_inonbox.empty()) {
-            auto node = q_inonbox.front();
-            q_inonbox.pop();
-            cur_res = fmax(node->bMax.x - node->bMin.x, node->bMax.y - node->bMin.y);
-            if (cur_res > resolution) {
-                quadtree.splitNode(node);
-                for (int i = 0; i < 4; i++) {
-                    cur_res = fmax(node->children[i]->bMax.x - node->children[i]->bMin.x, node->children[i]->bMax.y - node->children[i]->bMin.y);
-                    if (node->children[i] && cur_res > resolution 
-                        && (quadtree.isIntersectBox(node->children[i]->bMin, node->children[i]->bMax, box_min, box_max) 
-                            || quadtree.isInsideBox(node->children[i]->bMin, node->children[i]->bMax, box_min, box_max))) 
-                            {
-                                q_inonbox.push(node->children[i]);
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+            cur_res = fmax(cur->bMax.x - cur->bMin.x, cur->bMax.y - cur->bMin.y);
+            // recursively refine the children leaves until they meet the resolution if this node is inside the box
+            if (quadtree.isInsideBox(cur->bMin, cur->bMax, box_min, box_max)){
+				std::function<void(TreeNode*)> traverse = [&](TreeNode* cur) {
+					if (cur->isLeaf) {
+						cur_res = fmax(cur->bMax.x - cur->bMin.x, cur->bMax.y - cur->bMin.y);
+                        while (cur_res > resolution) {
+                            quadtree.splitNode(cur);
+                            for (int i = 0; i < 4; ++i) {
+                                traverse(cur->children[i]);
                             }
+                        }
+                    }
+                    else {
+                        for (int i = 0; i < 4; ++i) {
+                            traverse(cur->children[i]);
+                        }
+					}
+				};
+                // Call the lambda function with the current node
+                traverse(cur);
+            }
+            else if (quadtree.isIntersectBox(cur->bMin, cur->bMax, box_min, box_max)) {
+                if (cur->isLeaf) {
+                    if (cur_res > resolution) {
+                        quadtree.splitNode(cur);
+                        for (int i = 0; i < 4; ++i) {
+                            q.push(cur->children[i]);
+                        }
+                    }
+                }
+                else {
+                    for (int i = 0; i < 4; ++i) {
+                        q.push(cur->children[i]);
+                    }
                 }
             }
         }
+        // // BFS method
+        // std::list<TreeNode*> nodes = {};
+        // float cur_res = 0;
+        // nodes = quadtree.getInOnBoxNodes(root, box_min, box_max);
+        // std::queue <TreeNode*> q_inonbox;
+        // for (auto node : nodes) {
+        //     q_inonbox.push(node);    // initialize the queue
+        // }
+ 
+        // while (!q_inonbox.empty()) {
+        //     auto node = q_inonbox.front();
+        //     q_inonbox.pop();
+        //     cur_res = fmax(node->bMax.x - node->bMin.x, node->bMax.y - node->bMin.y);
+        //     if (cur_res > resolution) {
+        //         quadtree.splitNode(node);
+        //         for (int i = 0; i < 4; i++) {
+        //             cur_res = fmax(node->children[i]->bMax.x - node->children[i]->bMin.x, node->children[i]->bMax.y - node->children[i]->bMin.y);
+        //             if (node->children[i] && cur_res > resolution 
+        //                 && (quadtree.isIntersectBox(node->children[i]->bMin, node->children[i]->bMax, box_min, box_max) 
+        //                     || quadtree.isInsideBox(node->children[i]->bMin, node->children[i]->bMax, box_min, box_max))) 
+        //                     {
+        //                         q_inonbox.push(node->children[i]);
+        //                     }
+        //         }
+        //     }
+        // }
     }
 
 };
